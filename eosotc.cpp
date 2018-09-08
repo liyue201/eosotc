@@ -7,17 +7,66 @@ eosotc::eosotc(account_name self) : contract(self),
                                     m_orders(self, self),
                                     m_markets(self, self)
 {
-    // markets m(self, self);
 }
 
 void eosotc::hi(account_name user)
 {
-    print("Hello, ", name{user});
+   print("Hello, ", name{user});
+}
+
+void eosotc::clear_db()
+{
+    for (auto itr = m_orders.begin(); itr != m_orders.end();)
+    {
+        //prints("id:");
+        // printi(itr->id);
+        auto temp = itr;
+        itr++;
+        m_orders.erase(temp);
+    }
+
+    for (auto itr = m_markets.begin(); itr != m_markets.end();)
+    {
+        //  prints("id:");
+        //  printi(itr->id);
+        auto temp = itr;
+        itr++;
+        m_markets.erase(temp);
+    }
+}
+
+void eosotc::create_market(account_name token_contract, const symbol_type &token_symbol)
+{
+    uint128_t token_id = (uint128_t(token_contract) << 64) | token_symbol.value;
+    auto idx = m_markets.template get_index<N(token_id)>();
+    auto itr = idx.find(token_id);
+
+    eosio_assert(itr == idx.end(), "token market already created");
+
+    auto pk = m_markets.available_primary_key();
+    m_markets.emplace(_self, [&](auto &market) {
+        market.id = pk;
+        //market.token_id = token_id;
+        market.token_contract = token_contract;
+        market.token_symbol = token_symbol;
+        market.opened = false;
+    });
+}
+
+void eosotc::open_market(account_name token_contract, const symbol_type &token_symbol, bool opend)
+{
+    uint128_t token_id = (uint128_t(token_contract) << 64) | token_symbol.value;
+    auto idx = m_markets.template get_index<N(token_id)>();
+    auto market = idx.get(token_id, "token market does not exist");
+
+    m_markets.modify(market, 0, [&](auto &m) {
+        m.opened = opend;
+    });
 }
 
 void eosotc::place_order(account_name creator, uint8_t type, uint64_t eos_amount, uint64_t token_amount, uint128_t token_id)
 {
-    prints("place_order");
+    prints("place_order========");
     // eosio_assert(eos_amount >= 10000, "invalid eos_amount");
     // eosio_assert(token_amount >= 10000, "invalid token_amount");
 
@@ -126,15 +175,34 @@ void eosotc::on(const currency::transfer &t, account_name code)
     prints(" param.token_id:");
     printi(param.token_id);
     prints("=============================================");
-    eosio_assert(param.opt >= 1 && param.opt <= 2, "invalid type");
+
+    if (param.opt == uint8_t(99))
+    {
+        clear_db();
+        return;
+    }
+
+    eosio_assert(param.opt > OPT_BEGIN && param.opt < OPT_END, "invalid type");
 
     symbol_type eos{S(4, EOS)};
-
-    if (param.opt == PLACE_ORDER)
+    if (param.opt == OPT_CREATE_MARKET)
+    {
+        // eosio_assert(t.quantity.symbol != eos, "asset must not be EOS");
+        create_market(code, t.quantity.symbol);
+    }
+    else if (param.opt == OPT_OPEN_MARKET)
+    {
+        open_market(code, t.quantity.symbol, true);
+    }
+    else if (param.opt == OPT_CLOSE_MARKET)
+    {
+        open_market(code, t.quantity.symbol, false);
+    }
+    else if (param.opt == OPT_PLACE_ORDER)
     {
         place_order(t.from, BID, t.quantity.amount, param.amount, param.token_id);
     }
-    else if (param.opt == TRADE)
+    else if (param.opt == OPT_TRADE)
     {
     }
 }

@@ -13,8 +13,16 @@ using namespace eosio;
 using std::string;
 using std::vector;
 
-const static uint8_t PLACE_ORDER = 1;
-const static uint8_t TRADE = 2;
+enum opt
+{
+  OPT_BEGIN = 0,
+  OPT_CREATE_MARKET,
+  OPT_OPEN_MARKET,
+  OPT_CLOSE_MARKET,
+  OPT_PLACE_ORDER,
+  OPT_TRADE,
+  OPT_END
+};
 
 const static uint8_t ASK = 1;
 const static uint8_t BID = 2;
@@ -37,24 +45,29 @@ public:
   void apply(account_name contract, account_name action);
 
 public:
-  //using contract::contract;
 
-  // @abi table
+  // @abi table markets
   struct market
   {
     uint64_t id = 0;
-    uint128_t token_id;
-    account_name contract = 0;
-    string symbol;
-    bool enabled = true;
+    //uint128_t token_id;
+    uint64_t token_contract;
+    uint64_t token_symbol;
+    bool opened = true;
 
-    auto primary_key() const { return id; }
-    uint128_t by_token_id() const { return token_id; }
-    EOSLIB_SERIALIZE(market, (id)(token_id)(contract)(symbol)(enabled))
+    auto primary_key() const
+    {
+      return id;
+    }
+    uint128_t by_token_id() const
+    {
+      return (uint128_t(token_contract) << 64) | token_symbol;
+    }
+    EOSLIB_SERIALIZE(market, (id)(token_contract)(token_symbol)(opened))
   };
   typedef eosio::multi_index<N(markets), market, indexed_by<N(token_id), const_mem_fun<market, uint128_t, &market::by_token_id>>> markets;
 
-  // @abi table
+  // @abi table orders
   struct order
   {
     uint64_t id;
@@ -69,7 +82,12 @@ public:
   };
   typedef eosio::multi_index<N(orders), order> orders;
 
+  void clear_db();
   void on(const currency::transfer &t, account_name code);
+
+  void create_market(account_name token_contract, const symbol_type &token_symbol);
+  void open_market(account_name token_contract, const symbol_type &token_symbol, bool opened);
+
   void place_order(account_name creator, uint8_t type, uint64_t eos_amount, uint64_t token_amount, uint128_t token_id);
   void parse_memo_param(string memo, memo_param &param);
 
