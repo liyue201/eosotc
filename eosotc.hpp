@@ -13,6 +13,8 @@ using namespace eosio;
 using std::string;
 using std::vector;
 
+const static char *ADMIN = "user1";
+
 enum opt
 {
   OPT_BEGIN = 0,
@@ -32,7 +34,8 @@ struct memo_param
   uint8_t opt = 0;
   uint64_t order_id = 0;
   uint64_t amount = 0;
-  uint128_t token_id = 0;
+  uint64_t token_contract;
+  uint64_t token_symbol;
 };
 
 class eosotc : public eosio::contract
@@ -45,24 +48,16 @@ public:
   void apply(account_name contract, account_name action);
 
 public:
-
   // @abi table markets
   struct market
   {
     uint64_t id = 0;
-    //uint128_t token_id;
     uint64_t token_contract;
     uint64_t token_symbol;
-    bool opened = true;
+    bool opened;
 
-    auto primary_key() const
-    {
-      return id;
-    }
-    uint128_t by_token_id() const
-    {
-      return (uint128_t(token_contract) << 64) | token_symbol;
-    }
+    auto primary_key() const { return id; }
+    uint128_t by_token_id() const { return (uint128_t(token_contract) << 64) | token_symbol; }
     EOSLIB_SERIALIZE(market, (id)(token_contract)(token_symbol)(opened))
   };
   typedef eosio::multi_index<N(markets), market, indexed_by<N(token_id), const_mem_fun<market, uint128_t, &market::by_token_id>>> markets;
@@ -75,10 +70,11 @@ public:
     uint8_t type;          // 1:ask 2:bid
     uint64_t eos_amount;   // eos数量
     uint64_t token_amount; // 代币数量
-    uint128_t token_id;
+    uint64_t token_contract;
+    uint64_t token_symbol;
     uint64_t created_at;
     auto primary_key() const { return id; }
-    EOSLIB_SERIALIZE(order, (id)(creator)(type)(eos_amount)(token_amount)(token_id)(created_at))
+    EOSLIB_SERIALIZE(order, (id)(creator)(type)(eos_amount)(token_amount)(token_contract)(token_symbol)(created_at))
   };
   typedef eosio::multi_index<N(orders), order> orders;
 
@@ -88,7 +84,7 @@ public:
   void create_market(account_name token_contract, const symbol_type &token_symbol);
   void open_market(account_name token_contract, const symbol_type &token_symbol, bool opened);
 
-  void place_order(account_name creator, uint8_t type, uint64_t eos_amount, uint64_t token_amount, uint128_t token_id);
+  void place_order(account_name creator, uint8_t type, uint64_t eos_amount, uint64_t token_amount, uint64_t token_contract, uint64_t token_symbol);
   void parse_memo_param(string memo, memo_param &param);
 
 private:
