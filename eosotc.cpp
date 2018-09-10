@@ -363,7 +363,7 @@ void eosotc::on(const currency::transfer &t, account_name code)
         }
         else
         {
-            sell_token(t.from, param.order_id, t.quantity.amount, param.token_contract, param.token_symbol);
+            sell_token(t.from, param.order_id, t.quantity.amount, code, t.quantity.symbol.value);
         }
     }
 }
