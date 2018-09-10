@@ -16,10 +16,14 @@
 #define ASSERT(test, msg) eosio_assert(test, msg);
 #endif
 
+#define EOS_CONTRACT N(eosio.token)
+#define EOS_SYMBOL S(4, EOS)
+
 eosotc::eosotc(account_name self) : contract(self),
                                     m_ask_orders(self, self),
                                     m_bid_orders(self, self),
-                                    m_markets(self, self)
+                                    m_markets(self, self),
+                                    m_fees(self, self)
 {
 }
 
@@ -49,6 +53,12 @@ void eosotc::clear_db()
         auto temp = itr;
         itr++;
         m_markets.erase(temp);
+    }
+    for (auto itr = m_fees.begin(); itr != m_fees.end();)
+    {
+        auto temp = itr;
+        itr++;
+        m_fees.erase(temp);
     }
 }
 
@@ -141,7 +151,6 @@ void eosotc::buy_token(account_name buyer, uint64_t order_id, uint64_t eos_amoun
 
     account_name exchanger = _self;
     account_name seller = order.creator;
-    symbol_type eos{S(4, EOS)};
 
     int64_t eos_fee = FEE_RATE * eos_amount / 100;
     int64_t token_fee = FEE_RATE * order.token_amount / 100;
@@ -158,11 +167,13 @@ void eosotc::buy_token(account_name buyer, uint64_t order_id, uint64_t eos_amoun
     //发送EOS给卖方
     action(
         permission_level{exchanger, N(active)},
-        N(eosio.token), N(transfer),
-        std::make_tuple(exchanger, seller, asset{real_eos_amount, eos.value}, std::string("receive EOS from EOSOTC")))
+        EOS_CONTRACT, N(transfer),
+        std::make_tuple(exchanger, seller, asset{real_eos_amount, EOS_SYMBOL}, std::string("receive EOS from EOSOTC")))
         .send();
 
     m_ask_orders.erase(order_itr);
+    add_fee(eos_fee, EOS_CONTRACT, EOS_SYMBOL);
+    add_fee(token_fee, token_contract, token_symbol);
 }
 
 void eosotc::sell_token(account_name seller, uint64_t order_id, uint64_t token_amount, uint64_t token_contract, uint64_t token_symbol)
@@ -186,7 +197,6 @@ void eosotc::sell_token(account_name seller, uint64_t order_id, uint64_t token_a
 
     account_name exchanger = _self;
     account_name buyer = order.creator;
-    symbol_type eos{S(4, EOS)};
 
     int64_t eos_fee = FEE_RATE * order.eos_amount / 100;
     int64_t token_fee = FEE_RATE * token_amount / 100;
@@ -196,18 +206,43 @@ void eosotc::sell_token(account_name seller, uint64_t order_id, uint64_t token_a
     //发送token给买方
     action(
         permission_level{exchanger, N(active)},
-        order.token_contract, N(transfer),
+        token_contract, N(transfer),
         std::make_tuple(exchanger, buyer, asset{real_token_amount, token_symbol}, std::string("receive token from EOSOTC")))
         .send();
 
     //发送EOS给卖方
     action(
         permission_level{exchanger, N(active)},
-        N(eosio.token), N(transfer),
-        std::make_tuple(exchanger, seller, asset{real_eos_amount, eos.value}, std::string("receive EOS from EOSOTC")))
+        EOS_CONTRACT, N(transfer),
+        std::make_tuple(exchanger, seller, asset{real_eos_amount, EOS_SYMBOL}, std::string("receive EOS from EOSOTC")))
         .send();
 
     m_bid_orders.erase(order_itr);
+    add_fee(eos_fee, EOS_CONTRACT, EOS_SYMBOL);
+    add_fee(token_fee, token_contract, token_symbol);
+}
+
+void eosotc::add_fee(uint64_t amount, uint64_t token_contract, uint64_t token_symbol)
+{
+    uint128_t token_id = (uint128_t(token_contract) << 64) | token_symbol;
+    auto idx = m_fees.template get_index<N(token_id)>();
+    auto itr = idx.find(token_id);
+    if (itr == idx.end())
+    {
+        auto pk = m_fees.available_primary_key();
+        m_fees.emplace(_self, [&](auto &fee) {
+            fee.id = pk;
+            fee.token_contract = token_contract;
+            fee.token_symbol = token_symbol;
+            fee.amount = amount;
+        });
+    }
+    else
+    {
+        m_fees.modify(*itr, 0, [&](auto &fee) {
+            fee.amount = fee.amount + amount;
+        });
+    }
 }
 
 void split(vector<string> &ret, const string &str, string sep)
@@ -313,6 +348,7 @@ void eosotc::on(const currency::transfer &t, account_name code)
 
     if (param.opt == uint8_t(99))
     {
+        ASSERT(t.from == string_to_name(ADMIN), "require_auth admin");
         clear_db();
         return;
     }
@@ -336,8 +372,7 @@ void eosotc::on(const currency::transfer &t, account_name code)
     }
     else if (param.opt == OPT_PLACE_ORDER)
     {
-        symbol_type eos{S(4, EOS)};
-        if (code == N(eosio.token) && eos == t.quantity.symbol)
+        if (code == EOS_CONTRACT && t.quantity.symbol == EOS_SYMBOL)
         {
             //挂买单
             ASSERT(param.amount >= 10000, "invalid amount");
@@ -356,8 +391,7 @@ void eosotc::on(const currency::transfer &t, account_name code)
     else if (param.opt == OPT_TRADE)
     {
         //吃单
-        symbol_type eos{S(4, EOS)};
-        if (code == N(eosio.token) && eos == t.quantity.symbol)
+        if (code == EOS_CONTRACT && t.quantity.symbol == EOS_SYMBOL)
         {
             buy_token(t.from, param.order_id, t.quantity.amount, param.token_contract, param.token_symbol);
         }

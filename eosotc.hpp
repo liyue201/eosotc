@@ -80,6 +80,19 @@ public:
   typedef eosio::multi_index<N(askorders), order> ask_orders;
   typedef eosio::multi_index<N(bidorders), order> bid_orders;
 
+  // @abi table fees
+  struct fee
+  {
+    uint64_t id = 0;
+    uint64_t token_contract = 0;
+    uint64_t token_symbol = 0;
+    uint64_t amount = 0;
+    auto primary_key() const { return id; }
+    uint128_t by_token_id() const { return (uint128_t(token_contract) << 64) | token_symbol; }
+    EOSLIB_SERIALIZE(fee, (id)(token_contract)(token_symbol)(amount))
+  };
+  typedef eosio::multi_index<N(fees), fee, indexed_by<N(token_id), const_mem_fun<fee, uint128_t, &fee::by_token_id>>> fees;
+
   void clear_db();
 
   void parse_memo_param(string memo, memo_param &param);
@@ -96,8 +109,11 @@ public:
 
   void sell_token(uint64_t order_id, account_name seller, uint64_t token_amount, uint64_t token_contract, uint64_t token_symbol);
 
+  void add_fee(uint64_t amount, uint64_t token_contract, uint64_t token_symbol);
+
 private:
   ask_orders m_ask_orders;
   bid_orders m_bid_orders;
   markets m_markets;
+  fees m_fees;
 };
