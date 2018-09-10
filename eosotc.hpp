@@ -92,7 +92,9 @@ public:
 
   void place_order(account_name creator, uint8_t type, uint64_t eos_amount, uint64_t token_amount, uint64_t token_contract, uint64_t token_symbol);
 
-  void trade(uint8_t type, uint64_t order_id, account_name trader, uint64_t eos_amount, uint64_t token_amount, uint64_t token_contract, uint64_t token_symbol);
+  void buy_token(uint64_t order_id, account_name buyer, uint64_t eos_amount, uint64_t token_contract, uint64_t token_symbol);
+
+  void sell_token(uint64_t order_id, account_name seller, uint64_t token_amount, uint64_t token_contract, uint64_t token_symbol);
 
 private:
   ask_orders m_ask_orders;

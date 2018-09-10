@@ -3,6 +3,19 @@
 #include <string>
 #include <vector>
 
+#define DEBUG
+
+#ifdef DEBUG
+#define ASSERT(test, msg) \
+    if ((test) <= 0)      \
+    {                     \
+        prints(msg);      \
+        return;           \
+    }
+#else
+#define ASSERT(test, msg) eosio_assert(test, msg);
+#endif
+
 eosotc::eosotc(account_name self) : contract(self),
                                     m_ask_orders(self, self),
                                     m_bid_orders(self, self),
@@ -42,13 +55,13 @@ void eosotc::clear_db()
 void eosotc::create_market(account_name token_contract, const symbol_type &token_symbol)
 {
     symbol_type eos{S(4, EOS)};
-    eosio_assert(token_symbol != eos, "asset must not be EOS");
+    ASSERT(token_symbol != eos, "asset must not be EOS");
 
     uint128_t token_id = (uint128_t(token_contract) << 64) | token_symbol.value;
     auto idx = m_markets.template get_index<N(token_id)>();
     auto itr = idx.find(token_id);
 
-    eosio_assert(itr == idx.end(), "market already created");
+    ASSERT(itr == idx.end(), "market already created");
 
     auto pk = m_markets.available_primary_key();
     m_markets.emplace(_self, [&](auto &market) {
@@ -65,7 +78,7 @@ void eosotc::open_market(account_name token_contract, const symbol_type &token_s
     auto idx = m_markets.template get_index<N(token_id)>();
     auto itr = idx.find(token_id);
 
-    eosio_assert(itr != idx.end(), "market does not exist");
+    ASSERT(itr != idx.end(), "market does not exist");
 
     m_markets.modify(*itr, 0, [&](auto &m) {
         m.opened = open;
@@ -77,15 +90,15 @@ void eosotc::place_order(account_name creator, uint8_t type, uint64_t eos_amount
     prints(" place_order========");
 
     //至少一个eos
-    eosio_assert(eos_amount >= 10000, "invalid eos_amount");
-    eosio_assert(token_amount >= 10000, "invalid token_amount");
+    ASSERT(eos_amount >= 10000, "invalid eos_amount");
+    ASSERT(token_amount >= 10000, "invalid token_amount");
 
     //market存在，且打开状态
     uint128_t token_id = (uint128_t(token_contract) << 64) | token_symbol;
     auto idx = m_markets.template get_index<N(token_id)>();
     auto itr = idx.find(token_id);
-    eosio_assert(itr != idx.end(), " market does not exist");
-    eosio_assert(itr->opened, "market does not opened");
+    ASSERT(itr != idx.end(), " market does not exist");
+    ASSERT(itr->opened, "market does not opened");
 
     auto pk = type == ASK ? m_ask_orders.available_primary_key() : m_bid_orders.available_primary_key();
     auto insert = [&](auto &order) {
@@ -108,83 +121,93 @@ void eosotc::place_order(account_name creator, uint8_t type, uint64_t eos_amount
     print(" Database set ");
 }
 
-void eosotc::trade(uint8_t type, account_name trader, uint64_t order_id, uint64_t eos_amount, uint64_t token_amount, uint64_t token_contract, uint64_t token_symbol)
+void eosotc::buy_token(account_name buyer, uint64_t order_id, uint64_t eos_amount, uint64_t token_contract, uint64_t token_symbol)
 {
-    prints(" trade========");
+    prints(" buy_token========");
 
     //market存在，且打开状态
     uint128_t token_id = (uint128_t(token_contract) << 64) | token_symbol;
     auto idx = m_markets.template get_index<N(token_id)>();
     auto itr = idx.find(token_id);
-    eosio_assert(itr != idx.end(), "market does not exist");
-    eosio_assert(itr->opened, "market does not opened");
+    ASSERT(itr != idx.end(), "market does not exist");
+    ASSERT(itr->opened, "market does not opened");
 
-    int64_t eos_fee = FEE_RATE * eos_amount / 100;
-    int64_t token_fee = FEE_RATE * token_amount / 100;
-    int64_t real_eos_amount = eos_amount - token_fee;
-    int64_t real_token_amount = token_amount - token_fee;
+    auto order_itr = m_ask_orders.find(order_id);
+    ASSERT(order_itr != m_ask_orders.end(), "token does not exist");
+    const auto &order = *order_itr;
+    ASSERT(order.token_contract == token_contract, "token contract not match");
+    ASSERT(order.token_symbol == token_symbol, "token symbol not match");
+    ASSERT(order.eos_amount == eos_amount, "eos_amount not match");
+
+    account_name exchanger = _self;
+    account_name seller = order.creator;
     symbol_type eos{S(4, EOS)};
 
-    if (type == ASK)
-    {
-        //卖token
-        auto order_itr = m_bid_orders.find(order_id);
-        eosio_assert(order_itr != m_bid_orders.end(), "token does not exist");
-        const auto &order = *order_itr;
-        eosio_assert(order.token_contract == token_contract, "token contract not match");
-        eosio_assert(order.token_symbol == token_symbol, "token symbol not match");
+    int64_t eos_fee = FEE_RATE * eos_amount / 100;
+    int64_t token_fee = FEE_RATE * order.token_amount / 100;
+    int64_t real_eos_amount = eos_amount - token_fee;
+    int64_t real_token_amount = order.token_amount - token_fee;
 
-        account_name transfer = _self;
-        account_name buyer = order.creator;
-        account_name seller = trader;
-        //account_name fee_reciever = string_to_name(ADMIN);
+    //发送token给买方
+    action(
+        permission_level{exchanger, N(active)},
+        order.token_contract, N(transfer),
+        std::make_tuple(exchanger, buyer, asset{real_token_amount, token_symbol}, std::string("receive token from EOSOTC")))
+        .send();
 
-        //发送token给买方
-        action(
-            permission_level{transfer, N(active)},
-            order.token_contract, transfer,
-            std::make_tuple(transfer, buyer, asset{real_token_amount, token_symbol}, std::string("receive token from EOSOTC")))
-            .send();
+    //发送EOS给卖方
+    action(
+        permission_level{exchanger, N(active)},
+        N(eosio.token), N(transfer),
+        std::make_tuple(exchanger, seller, asset{real_eos_amount, eos.value}, std::string("receive EOS from EOSOTC")))
+        .send();
 
-        //发送EOS给卖方
-        action(
-            permission_level{transfer, N(active)},
-            N(eosio.token), transfer,
-            std::make_tuple(transfer, seller, asset{real_eos_amount, eos.value}, std::string("receive EOS from EOSOTC")))
-            .send();
+    m_ask_orders.erase(order_itr);
+}
 
-        m_bid_orders.erase(order_itr);
-    }
-    else
-    {
-        //买
-        auto order_itr = m_ask_orders.find(order_id);
-        eosio_assert(order_itr != m_ask_orders.end(), "token does not exist");
-        const auto &order = *order_itr;
-        eosio_assert(order.token_contract == token_contract, "token contract not match");
-        eosio_assert(order.token_symbol == token_symbol, "token symbol not match");
+void eosotc::sell_token(account_name seller, uint64_t order_id, uint64_t token_amount, uint64_t token_contract, uint64_t token_symbol)
+{
+    prints(" sell_token========");
 
-        account_name transfer = _self;
-        account_name buyer = trader;
-        account_name seller = order.creator;
-        //account_name fee_reciever = string_to_name(ADMIN);
+    //market存在，且打开状态
+    uint128_t token_id = (uint128_t(token_contract) << 64) | token_symbol;
+    auto idx = m_markets.template get_index<N(token_id)>();
+    auto itr = idx.find(token_id);
+    ASSERT(itr != idx.end(), "market does not exist");
+    ASSERT(itr->opened, "market does not opened");
 
-        //发送token给买方
-        action(
-            permission_level{transfer, N(active)},
-            order.token_contract, transfer,
-            std::make_tuple(transfer, buyer, asset{real_token_amount, token_symbol}, std::string("receive token from EOSOTC")))
-            .send();
+    //卖token
+    auto order_itr = m_bid_orders.find(order_id);
+    ASSERT(order_itr != m_bid_orders.end(), "token does not exist");
+    const auto &order = *order_itr;
+    ASSERT(order.token_contract == token_contract, "token contract not match");
+    ASSERT(order.token_symbol == token_symbol, "token symbol not match");
+    ASSERT(order.token_amount == token_amount, "token_amount not match");
 
-        //发送EOS给卖方
-        action(
-            permission_level{transfer, N(active)},
-            N(eosio.token), transfer,
-            std::make_tuple(transfer, seller, asset{real_eos_amount, eos.value}, std::string("receive EOS from EOSOTC")))
-            .send();
+    account_name exchanger = _self;
+    account_name buyer = order.creator;
+    symbol_type eos{S(4, EOS)};
 
-        m_ask_orders.erase(order_itr);
-    }
+    int64_t eos_fee = FEE_RATE * order.eos_amount / 100;
+    int64_t token_fee = FEE_RATE * token_amount / 100;
+    int64_t real_eos_amount = order.eos_amount - token_fee;
+    int64_t real_token_amount = token_amount - token_fee;
+
+    //发送token给买方
+    action(
+        permission_level{exchanger, N(active)},
+        order.token_contract, N(transfer),
+        std::make_tuple(exchanger, buyer, asset{real_token_amount, token_symbol}, std::string("receive token from EOSOTC")))
+        .send();
+
+    //发送EOS给卖方
+    action(
+        permission_level{exchanger, N(active)},
+        N(eosio.token), N(transfer),
+        std::make_tuple(exchanger, seller, asset{real_eos_amount, eos.value}, std::string("receive EOS from EOSOTC")))
+        .send();
+
+    m_bid_orders.erase(order_itr);
 }
 
 void split(vector<string> &ret, const string &str, string sep)
@@ -261,7 +284,7 @@ void eosotc::on(const currency::transfer &t, account_name code)
 {
     prints(string("[eosotc::on] " + t.memo).c_str());
     prints("=============================================");
-    eosio_assert(t.quantity.is_valid(), "invalid quantity");
+    ASSERT(t.quantity.is_valid(), "invalid quantity");
 
     memo_param param;
     parse_memo_param(t.memo, param);
@@ -294,16 +317,16 @@ void eosotc::on(const currency::transfer &t, account_name code)
         return;
     }
 
-    eosio_assert(param.opt > OPT_BEGIN && param.opt < OPT_END, "invalid type");
+    ASSERT(param.opt > OPT_BEGIN && param.opt < OPT_END, "invalid type");
 
     if (param.opt == OPT_CREATE_MARKET)
     {
-        eosio_assert(t.from == string_to_name(ADMIN), "require_auth admin");
+        ASSERT(t.from == string_to_name(ADMIN), "require_auth admin");
         create_market(code, t.quantity.symbol);
     }
     else if (param.opt == OPT_OPEN_MARKET)
     {
-        eosio_assert(t.from == string_to_name(ADMIN), "require_auth admin");
+        ASSERT(t.from == string_to_name(ADMIN), "require_auth admin");
         open_market(code, t.quantity.symbol, true);
     }
     else if (param.opt == OPT_CLOSE_MARKET)
@@ -317,22 +340,31 @@ void eosotc::on(const currency::transfer &t, account_name code)
         if (code == N(eosio.token) && eos == t.quantity.symbol)
         {
             //挂买单
-            eosio_assert(param.amount >= 10000, "invalid amount");
-            eosio_assert(param.token_contract > 0, "invalid token_contract");
-            eosio_assert(param.token_symbol > 0, "invalid token_symbol");
+            ASSERT(param.amount >= 10000, "invalid amount");
+            ASSERT(param.token_contract > 0, "invalid token_contract");
+            ASSERT(param.token_symbol > 0, "invalid token_symbol");
 
             place_order(t.from, BID, t.quantity.amount, param.amount, param.token_contract, param.token_symbol);
         }
         else
         {
             //挂卖单
-            eosio_assert(param.amount >= 10000, "invalid amount");
+            ASSERT(param.amount >= 10000, "invalid amount");
             place_order(t.from, ASK, param.amount, t.quantity.amount, code, t.quantity.symbol.value);
         }
     }
     else if (param.opt == OPT_TRADE)
     {
         //吃单
+        symbol_type eos{S(4, EOS)};
+        if (code == N(eosio.token) && eos == t.quantity.symbol)
+        {
+            buy_token(t.from, param.order_id, t.quantity.amount, param.token_contract, param.token_symbol);
+        }
+        else
+        {
+            sell_token(t.from, param.order_id, t.quantity.amount, param.token_contract, param.token_symbol);
+        }
     }
 }
 
