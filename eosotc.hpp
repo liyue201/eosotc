@@ -13,16 +13,18 @@ using namespace eosio;
 using std::string;
 using std::vector;
 
-const static char *ADMIN = "user1";
-
 enum opt
 {
   OPT_BEGIN = 0,
   OPT_CREATE_MARKET,
   OPT_OPEN_MARKET,
   OPT_CLOSE_MARKET,
-  OPT_PLACE_ORDER,
-  OPT_TRADE,
+  OPT_PLACE_BID_ORDER,
+  OPT_PLACE_ASK_ORDER,
+  OPT_CANCEL_BID_ORDER,
+  OPT_CANCEL_ASK_ORDER,
+  OPT_BUY_TOKEN,
+  OPT_SELL_TOKEN,
   OPT_TAKE_FEE,
   OPT_END
 };
@@ -45,12 +47,9 @@ class eosotc : public eosio::contract
 {
 public:
   eosotc(account_name self);
-  /// @abi action
-  void hi(account_name user);
 
   void apply(account_name contract, account_name action);
 
-public:
   // @abi table markets
   struct market
   {
@@ -106,6 +105,10 @@ public:
   void open_market(account_name token_contract, const symbol_type &token_symbol, bool open);
 
   void place_order(account_name creator, uint8_t type, uint64_t eos_amount, uint64_t token_amount, uint64_t token_contract, uint64_t token_symbol);
+
+  void cancel_bid_order(account_name canceler, uint64_t order_id);
+
+  void cancel_ask_order(account_name canceler, uint64_t order_id);
 
   void buy_token(uint64_t order_id, account_name buyer, uint64_t eos_amount);
 

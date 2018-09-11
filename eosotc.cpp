@@ -18,6 +18,7 @@
 
 #define EOS_CONTRACT N(eosio.token)
 #define EOS_SYMBOL S(4, EOS)
+#define ADMIN "user1"
 
 eosotc::eosotc(account_name self) : contract(self),
                                     m_ask_orders(self, self),
@@ -25,11 +26,6 @@ eosotc::eosotc(account_name self) : contract(self),
                                     m_markets(self, self),
                                     m_fees(self, self)
 {
-}
-
-void eosotc::hi(account_name user)
-{
-    print("Hello, ", name{user});
 }
 
 void eosotc::clear_db()
@@ -146,6 +142,22 @@ void eosotc::place_order(account_name creator, uint8_t type, uint64_t eos_amount
         m_bid_orders.emplace(_self, insert);
     }
     print(" Database set ");
+}
+
+void eosotc::cancel_bid_order(account_name canceler, uint64_t order_id)
+{
+    auto itr = m_bid_orders.find(order_id);
+    ASSERT(itr != m_bid_orders.end(), "order does not exist");
+    ASSERT(itr->creator == canceler, "account not match");
+    m_bid_orders.erase(itr);
+}
+
+void eosotc::cancel_ask_order(account_name canceler, uint64_t order_id)
+{
+    auto itr = m_ask_orders.find(order_id);
+    ASSERT(itr != m_ask_orders.end(), "order does not exist");
+    ASSERT(itr->creator == canceler, "account not match");
+    m_ask_orders.erase(itr);
 }
 
 void eosotc::buy_token(account_name buyer, uint64_t order_id, uint64_t eos_amount)
@@ -411,35 +423,37 @@ void eosotc::on(const currency::transfer &t, account_name code)
         eosio_assert(t.from == string_to_name(ADMIN), "require_auth admin");
         open_market(code, t.quantity.symbol, false);
     }
-    else if (param.opt == OPT_PLACE_ORDER)
+    else if (param.opt == OPT_PLACE_BID_ORDER)
     {
-        if (code == EOS_CONTRACT && t.quantity.symbol == EOS_SYMBOL)
-        {
-            //挂买单
-            ASSERT(param.amount >= 10000, "invalid amount");
-            ASSERT(param.token_contract > 0, "invalid token_contract");
-            ASSERT(param.token_symbol > 0, "invalid token_symbol");
+        //挂买单
+        ASSERT(code == EOS_CONTRACT, "must be eos contract");
+        ASSERT(t.quantity.symbol == EOS_SYMBOL, "must be eos token");
+        ASSERT(param.amount >= 10000, "invalid amount");
+        ASSERT(param.token_contract > 0, "invalid token_contract");
+        ASSERT(param.token_symbol > 0, "invalid token_symbol");
 
-            place_order(t.from, BID, t.quantity.amount, param.amount, param.token_contract, param.token_symbol);
-        }
-        else
-        {
-            //挂卖单
-            ASSERT(param.amount >= 10000, "invalid amount");
-            place_order(t.from, ASK, param.amount, t.quantity.amount, code, t.quantity.symbol.value);
-        }
+        place_order(t.from, BID, t.quantity.amount, param.amount, param.token_contract, param.token_symbol);
     }
-    else if (param.opt == OPT_TRADE)
+    else if (param.opt == OPT_PLACE_ASK_ORDER)
     {
-        //吃单
-        if (code == EOS_CONTRACT && t.quantity.symbol == EOS_SYMBOL)
-        {
-            buy_token(t.from, param.order_id, t.quantity.amount);
-        }
-        else
-        {
-            sell_token(t.from, param.order_id, t.quantity.amount, code, t.quantity.symbol.value);
-        }
+        //挂卖单
+       // ASSERT(code != EOS_CONTRACT, "must not be eos contract");
+        ASSERT(t.quantity.symbol != EOS_SYMBOL, "must not be eos token");
+        ASSERT(param.amount >= 10000, "invalid amount");
+        place_order(t.from, ASK, param.amount, t.quantity.amount, code, t.quantity.symbol.value);
+    }
+    else if (param.opt == OPT_BUY_TOKEN)
+    {
+        ASSERT(code == EOS_CONTRACT, "must be eos contract");
+        ASSERT(t.quantity.symbol == EOS_SYMBOL, "must be eos token");
+
+        buy_token(t.from, param.order_id, t.quantity.amount);
+    }
+    else if (param.opt == OPT_SELL_TOKEN)
+    {
+        //ASSERT(code != EOS_CONTRACT, "must not be eos contract");
+        ASSERT(t.quantity.symbol != EOS_SYMBOL, "must not be eos token");
+        sell_token(t.from, param.order_id, t.quantity.amount, code, t.quantity.symbol.value);
     }
     else if (param.opt == OPT_TAKE_FEE)
     {
@@ -462,7 +476,7 @@ void eosotc::apply(account_name code, account_name action)
     auto &thiscontract = *this;
     switch (action)
     {
-        EOSIO_API(eosotc, (hi)(on));
+        EOSIO_API(eosotc, (on));
     };
 }
 
