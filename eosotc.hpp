@@ -23,6 +23,7 @@ enum opt
   OPT_CLOSE_MARKET,
   OPT_PLACE_ORDER,
   OPT_TRADE,
+  OPT_TAKE_FEE,
   OPT_END
 };
 
@@ -37,6 +38,7 @@ struct memo_param
   uint64_t amount = 0;
   uint64_t token_contract = 0;
   uint64_t token_symbol = 0;
+  uint64_t limit = 0;
 };
 
 class eosotc : public eosio::contract
@@ -105,11 +107,13 @@ public:
 
   void place_order(account_name creator, uint8_t type, uint64_t eos_amount, uint64_t token_amount, uint64_t token_contract, uint64_t token_symbol);
 
-  void buy_token(uint64_t order_id, account_name buyer, uint64_t eos_amount, uint64_t token_contract, uint64_t token_symbol);
+  void buy_token(uint64_t order_id, account_name buyer, uint64_t eos_amount);
 
   void sell_token(uint64_t order_id, account_name seller, uint64_t token_amount, uint64_t token_contract, uint64_t token_symbol);
 
   void add_fee(uint64_t amount, uint64_t token_contract, uint64_t token_symbol);
+
+  void take_fee(account_name account, int limit = 10);
 
 private:
   ask_orders m_ask_orders;
