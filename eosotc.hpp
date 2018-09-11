@@ -13,21 +13,16 @@ using namespace eosio;
 using std::string;
 using std::vector;
 
-enum opt
-{
-  OPT_BEGIN = 0,
-  OPT_CREATE_MARKET,
-  OPT_OPEN_MARKET,
-  OPT_CLOSE_MARKET,
-  OPT_PLACE_BID_ORDER,
-  OPT_PLACE_ASK_ORDER,
-  OPT_CANCEL_BID_ORDER,
-  OPT_CANCEL_ASK_ORDER,
-  OPT_BUY_TOKEN,
-  OPT_SELL_TOKEN,
-  OPT_TAKE_FEE,
-  OPT_END
-};
+#define OPT_CREATE_MARKET "create_market"
+#define OPT_OPEN_MARKET "open_market"
+#define OPT_CLOSE_MARKET "close_market"
+#define OPT_PLACE_BID_ORDER "place_bid_order"
+#define OPT_PLACE_ASK_ORDER "place_ask_order"
+#define OPT_CANCEL_BID_ORDER "cancel_bid_order"
+#define OPT_CANCEL_ASK_ORDER "cancel_ask_order"
+#define OPT_BUY_TOKEN "buy_token"
+#define OPT_SELL_TOKEN "sell_token"
+#define OPT_TAKE_FEE "take_fee"
 
 const static uint8_t ASK = 1;
 const static uint8_t BID = 2;
@@ -35,7 +30,7 @@ const static uint64_t FEE_RATE = 1;
 
 struct memo_param
 {
-  uint8_t opt = 0;
+  string opt;
   uint64_t order_id = 0;
   uint64_t amount = 0;
   uint64_t token_contract = 0;

@@ -342,7 +342,7 @@ void eosotc::parse_memo_param(string memo, memo_param &param)
         {
             if (pair[0] == "opt")
             {
-                param.opt = std::stoi(pair[1], nullptr, 0);
+                param.opt = pair[1];
             }
             else if (pair[0] == "order_id")
             {
@@ -377,6 +377,7 @@ void eosotc::on(const currency::transfer &t, account_name code)
     memo_param param;
     parse_memo_param(t.memo, param);
 
+#ifdef DEBUG
     prints(string("[eosotc::on]").c_str());
 
     prints(" t.from:");
@@ -388,7 +389,7 @@ void eosotc::on(const currency::transfer &t, account_name code)
     printui(t.quantity.amount);
 
     prints(" param.opt:");
-    printui(param.opt);
+    prints(param.opt.c_str());
     prints(" param.order_id:");
     printui(param.order_id);
     prints(" param.amount:");
@@ -399,14 +400,13 @@ void eosotc::on(const currency::transfer &t, account_name code)
     printui(param.token_symbol);
     prints("=============================================");
 
-    if (param.opt == uint8_t(99))
+    if (param.opt == "clear_db")
     {
         ASSERT(t.from == string_to_name(ADMIN), "require_auth admin");
         clear_db();
         return;
     }
-
-    ASSERT(param.opt > OPT_BEGIN && param.opt < OPT_END, "invalid type");
+#endif // DEBUG
 
     if (param.opt == OPT_CREATE_MARKET)
     {
@@ -437,7 +437,7 @@ void eosotc::on(const currency::transfer &t, account_name code)
     else if (param.opt == OPT_PLACE_ASK_ORDER)
     {
         //挂卖单
-       // ASSERT(code != EOS_CONTRACT, "must not be eos contract");
+        // ASSERT(code != EOS_CONTRACT, "must not be eos contract");
         ASSERT(t.quantity.symbol != EOS_SYMBOL, "must not be eos token");
         ASSERT(param.amount >= 10000, "invalid amount");
         place_order(t.from, ASK, param.amount, t.quantity.amount, code, t.quantity.symbol.value);
@@ -460,6 +460,10 @@ void eosotc::on(const currency::transfer &t, account_name code)
         account_name admin = string_to_name(ADMIN);
         ASSERT(t.from == admin, "require_auth admin");
         take_fee(admin, param.limit);
+    }
+    else
+    {
+        ASSERT( 0, "invalid opt");
     }
 }
 
