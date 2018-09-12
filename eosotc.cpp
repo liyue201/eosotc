@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #define ASSERT(test, msg) \
@@ -18,7 +18,7 @@
 
 #define EOS_CONTRACT N(eosio.token)
 #define EOS_SYMBOL S(4, EOS)
-#define ADMIN "user1"
+#define ADMIN "dddddddadmin"
 
 eosotc::eosotc(account_name self) : contract(self),
                                     m_ask_orders(self, self),

@@ -3,43 +3,46 @@
 cleos wallet unlock --password PW5K9UYDNxyBrSHyruWdLywwRghfMmd1u9CUaayqYSjBZL7qLiwBy
 
 #清空数据
-cleos  transfer user1  eosotc  '1 DDD' 'opt=clear_db'
+cleos  transfer dddddddadmin  ddddcontract  '0.0001 EOS' 'opt=clear_db'
+#cleos push action dddddddadmin transfer '["dddddddadmin", "ddddcontract", "0.0001 DDD", "opt=clear_db" ]' -p dddddddadmin
 
-cleos get table eosotc eosotc askorders
-cleos get table eosotc eosotc bidorders
-cleos get table eosotc eosotc markets
-cleos get table eosotc eosotc fees
+cleos get table ddddcontract ddddcontract askorders
+cleos get table ddddcontract ddddcontract bidorders
+cleos get table ddddcontract ddddcontract markets
+cleos get table ddddcontract ddddcontract fees
 
 #创建市场
-cleos  transfer user1  eosotc  '1 DDD' 'opt=create_market'
+cleos push action dddddddadmin transfer '["dddddddadmin", "ddddcontract", "0.0001 DDD", "opt=create_market" ]' -p dddddddadmin
+
 
 #打开市场
-cleos  transfer user1  eosotc  '1 DDD' 'opt=open_market'
+cleos push action dddddddadmin transfer '["dddddddadmin", "ddddcontract", "0.0001 DDD", "opt=open_market" ]' -p dddddddadmin
 
-#leos get table eosotc eosotc markets
+#cleos get table ddddcontract ddddcontract markets
 
 #挂买单：用2个EOS买1个DDD 
-cleos  transfer user1  eosotc  '2 EOS' 'opt=place_bid_order&amount=10000&token_contract=6138663591592764928&token_symbol=1145324548'
-cleos get table eosotc eosotc bidorders
+cleos  transfer ddddddduser1  ddddcontract  '2.0000 EOS' 'opt=place_bid_order&amount=10000&token_contract=5355506343930010928&token_symbol=1145324548'
+cleos get table ddddcontract ddddcontract bidorders
 
 #吃单
-#cleos  transfer user2  eosotc  '1 DDD' 'opt=sell_token&order_id=1536634505000000'
-#cleos get table eosotc eosotc bidorders
-#cleos get table eosotc eosotc fees
+#cleos push action dddddddadmin transfer '["ddddddduser2", "ddddcontract", "1.0000 DDD", "opt=sell_token&order_id=1536753786500000" ]' -p ddddddduser2
+
+#cleos get table ddddcontract ddddcontract bidorders
+#cleos get table ddddcontract ddddcontract fees
 
 #挂单：卖5个DDD，价格是1个EOS
-cleos  transfer user1  eosotc  '5 DDD' 'opt=place_ask_order&amount=10000'
-cleos get table eosotc eosotc askorders
+cleos push action dddddddadmin transfer '["ddddddduser1", "ddddcontract", "5.0000 DDD", "opt=place_ask_order&amount=10000" ]' -p ddddddduser1
+#cleos get table ddddcontract ddddcontract askorders
 
 #吃单
-#cleos  transfer user2  eosotc  '1 EOS' 'opt=buy_token&order_id=1536630964500000'
-#cleos get table eosotc eosotc bidorders
-#cleos get table eosotc eosotc fees
+#cleos  transfer ddddddduser2  ddddcontract  '1.0000 EOS' 'opt=buy_token&order_id=1536753828500000'
+
+#cleos get table ddddcontract ddddcontract bidorders
+#cleos get table ddddcontract ddddcontract fees
 
 # 提取手续费
-#cleos  transfer user1  eosotc  '1 DDD' 'opt=take_fee&limit=1'
+#cleos  transfer dddddddadmin  ddddcontract  '0.0001 EOS' 'opt=take_fee&limit=1'
 
-
-#cleos get currency balance eosio.token  user1
-#cleos get currency balance eosio.token  user2
+#cleos get currency balance eosio.token  ddddddduser1
+#cleos get currency balance eosio.token  ddddddduser2
 #

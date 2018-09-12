@@ -6,4 +6,4 @@ cleos wallet unlock --password PW5K9UYDNxyBrSHyruWdLywwRghfMmd1u9CUaayqYSjBZL7qL
 
 eosiocpp -o eosotc.wast eosotc.cpp &  eosiocpp -g eosotc.abi eosotc.cpp 
 
-cleos  set contract eosotc ../eosotc   -p eosotc@active
+cleos  set contract ddddcontract ../eosotc   -p ddddcontract@active
