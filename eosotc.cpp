@@ -372,6 +372,12 @@ void eosotc::on(const currency::transfer &t, account_name code)
 {
     prints(string("[eosotc::on] " + t.memo).c_str());
     prints("=============================================");
+
+    if (t.from == _self)
+    {
+        return;
+    }
+
     ASSERT(t.quantity.is_valid(), "invalid quantity");
 
     memo_param param;
@@ -463,7 +469,7 @@ void eosotc::on(const currency::transfer &t, account_name code)
     }
     else
     {
-        ASSERT( 0, "invalid opt");
+        ASSERT(0, "invalid opt");
     }
 }
 
