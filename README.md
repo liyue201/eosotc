@@ -46,7 +46,7 @@ cleos push action dddddddadmin transfer '["ddddddduser1", "ddddcontract", "5.000
 cleos get table ddddcontract ddddcontract askorders
 ```
 
-#吃单
+吃单
 ```
 cleos  transfer ddddddduser2  ddddcontract  '1.0000 EOS' 'opt=buy_token&order_id=1536753828500000'
 ```
