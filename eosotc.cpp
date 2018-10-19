@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define ASSERT(test, msg) \
@@ -373,10 +373,11 @@ void eosotc::on(const currency::transfer &t, account_name code)
     prints(string("[eosotc::on] " + t.memo).c_str());
     prints("=============================================");
 
-    if (t.from == _self)
+    if (t.from == _self || t.to != _self)
     {
         return;
     }
+    require_auth(t.from);
 
     ASSERT(t.quantity.is_valid(), "invalid quantity");
 
@@ -480,14 +481,14 @@ void eosotc::apply(account_name code, account_name action)
         on(unpack_action_data<currency::transfer>(), code);
         return;
     }
-    if (code != _self)
-        return;
+    // if (code != _self)
+    //     return;
 
-    auto &thiscontract = *this;
-    switch (action)
-    {
-        EOSIO_API(eosotc, (on));
-    };
+    // auto &thiscontract = *this;
+    // switch (action)
+    // {
+    //     EOSIO_API(eosotc, (claim));
+    // };
 }
 
 extern "C"
